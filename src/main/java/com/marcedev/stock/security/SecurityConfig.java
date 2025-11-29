@@ -46,7 +46,7 @@ public class SecurityConfig {
                         // =============================
 
                         // Solo ADMIN puede administrar sucursales
-                        .requestMatchers("/branches/**").hasRole("ADMIN")
+                        .requestMatchers("/branches/**").authenticated()
 
                         // Solo ADMIN puede transferir stock
                         .requestMatchers("/stock/transfer").hasRole("ADMIN")
