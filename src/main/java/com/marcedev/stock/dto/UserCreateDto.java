@@ -1,21 +1,20 @@
 package com.marcedev.stock.dto;
 
 import lombok.Data;
-
 import java.util.List;
 
 @Data
-public class UserDto {
+public class UserCreateDto {
 
-    private Long id;
     private String username;
+    private String password;
+
     private String fullName;
     private String phone;
 
-    private Boolean active;
+    private Boolean active = true;
 
     private Long branchId;
-    private String branchName;
 
     private List<String> roles;
 }

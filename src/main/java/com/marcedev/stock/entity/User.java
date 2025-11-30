@@ -23,6 +23,14 @@ public class User {
     @Column(nullable = false)
     private String password;
 
+    // NUEVOS CAMPOS
+    private String fullName;
+    private String phone;
+
+    @ManyToOne
+    @JoinColumn(name = "branch_id")
+    private Branch branch;
+
     @Builder.Default
     private Boolean active = true;
 
@@ -32,6 +40,4 @@ public class User {
             joinColumns = @JoinColumn(name = "user_id"),
             inverseJoinColumns = @JoinColumn(name = "role_id"))
     private Set<Role> roles;
-
-
 }

@@ -23,7 +23,7 @@ public class CustomUserDetailsService implements UserDetailsService {
                 .username(user.getUsername())
                 .password(user.getPassword())     // BCrypt!
                 .authorities(user.getRoles().stream()
-                        .map(r -> r.getName())
+                        .map(r -> "ROLE_" + r.getName())   // ← IMPORTANTE
                         .toArray(String[]::new))
                 .accountLocked(!user.getActive())
                 .build();

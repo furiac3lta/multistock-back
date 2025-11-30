@@ -9,36 +9,39 @@ import com.marcedev.stock.service.AuthService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.*;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 @Service
 @RequiredArgsConstructor
 public class AuthServiceImpl implements AuthService {
 
-    private final AuthenticationManager authManager;
     private final UserRepository userRepository;
     private final JwtService jwtService;
+    private final PasswordEncoder encoder;
 
     @Override
     public AuthResponseDto login(AuthRequestDto dto) {
 
-        authManager.authenticate(
-                new UsernamePasswordAuthenticationToken(
-                        dto.getUsername(),
-                        dto.getPassword()
-                )
-        );
-
         User user = userRepository.findByUsername(dto.getUsername())
                 .orElseThrow(() -> new UsernameNotFoundException("Usuario no encontrado"));
 
+        if (!encoder.matches(dto.getPassword(), user.getPassword())) {
+            throw new RuntimeException("Contraseña incorrecta");
+        }
+
         String token = jwtService.generateToken(user);
 
-        AuthResponseDto response = new AuthResponseDto();
-        response.setToken(token);
-        response.setUsername(user.getUsername());
-        response.setRoles(user.getRoles().stream().map(r -> r.getName()).toList());
+        AuthResponseDto resp = new AuthResponseDto();
+        resp.setToken(token);
+        resp.setUsername(user.getUsername());
+        resp.setRoles(
+                user.getRoles()
+                        .stream()
+                        .map(r -> r.getName())
+                        .toList()
+        );
 
-        return response;
+        return resp;
     }
 }

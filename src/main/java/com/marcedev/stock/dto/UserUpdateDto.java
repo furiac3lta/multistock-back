@@ -1,21 +1,14 @@
 package com.marcedev.stock.dto;
 
 import lombok.Data;
-
 import java.util.List;
 
 @Data
-public class UserDto {
+public class UserUpdateDto {
 
-    private Long id;
-    private String username;
     private String fullName;
     private String phone;
-
     private Boolean active;
-
     private Long branchId;
-    private String branchName;
-
     private List<String> roles;
 }

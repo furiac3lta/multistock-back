@@ -1,64 +1,77 @@
 package com.marcedev.stock.security;
 
+import com.marcedev.stock.entity.Role;
 import com.marcedev.stock.entity.User;
-import io.jsonwebtoken.*;
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.security.Key;
-import java.util.Date;
-import java.util.List;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 public class JwtService {
 
-    private final Key key;
+    private final Key key = Keys.hmacShaKeyFor(
+            "miClaveSecretaSuperLargaParaJWT1234567890".getBytes()
+    );
 
-    public JwtService(@Value("${jwt.secret}") String secret) {
-        this.key = Keys.hmacShaKeyFor(secret.getBytes());
-    }
-
-    // ==========================================
-    //           GENERAR TOKEN CON ROLES
-    // ==========================================
+    // ========================================
+    // GENERAR TOKEN
+    // ========================================
     public String generateToken(User user) {
 
-        // Lista de roles en formato válido para Spring Security
-        List<String> roles = user.getRoles().stream()
-                .map(r -> "ROLE_" + r.getName()) // ROLE_ADMIN, ROLE_USER
-                .toList();
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("roles", user.getRoles().stream()
+                .map(Role::getName)
+                .toList());
 
         return Jwts.builder()
+                .setClaims(claims)
                 .setSubject(user.getUsername())
-                .claim("roles", roles)
                 .setIssuedAt(new Date())
-                .signWith(key, SignatureAlgorithm.HS256)
+                .setExpiration(new Date(System.currentTimeMillis() + 1000L * 60 * 60 * 24))
+                .signWith(key)
                 .compact();
     }
 
-    // ==========================================
-    //           EXTRAER CLAIMS DEL TOKEN
-    // ==========================================
-    private Claims extractAllClaims(String token) {
+    // ========================================
+    // EXTRAER USERNAME
+    // ========================================
+    public String extractUsername(String token) {
+        try {
+            return getAllClaims(token).getSubject();
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+
+    // ========================================
+    // EXTRAER ROLES (BLINDADO)
+    // ========================================
+    public List<String> extractRoles(String token) {
+        try {
+            Object rolesObj = getAllClaims(token).get("roles");
+            if (rolesObj instanceof List<?> list) {
+                return list.stream().map(String::valueOf).toList();
+            }
+            return List.of();
+        } catch (Exception e) {
+            return List.of();
+        }
+    }
+
+    // ========================================
+    // HELPERS
+    // ========================================
+    private Claims getAllClaims(String token) {
         return Jwts.parserBuilder()
                 .setSigningKey(key)
                 .build()
                 .parseClaimsJws(token)
                 .getBody();
-    }
-
-    // ==========================================
-    //          EXTRAER USERNAME
-    // ==========================================
-    public String extractUsername(String token) {
-        return extractAllClaims(token).getSubject();
-    }
-
-    // ==========================================
-    //          EXTRAER ROLES DEL TOKEN
-    // ==========================================
-    public List<String> extractRoles(String token) {
-        return extractAllClaims(token).get("roles", List.class);
     }
 }
