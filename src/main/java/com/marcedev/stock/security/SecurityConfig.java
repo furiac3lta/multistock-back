@@ -41,26 +41,26 @@ public class SecurityConfig {
                         // SWAGGER (si lo usas)
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
 
-                        // =============================
-                        //      MULTISUCURSAL
-                        // =============================
+                                // =============================
+                                //      MULTISUCURSAL
+                                    // =============================
 
-                        // Solo ADMIN puede administrar sucursales
-                        .requestMatchers("/branches/**").authenticated()
+                                    // Solo ADMIN puede administrar sucursales
+                                .requestMatchers("/branches/**").authenticated()
 
-                        // Solo ADMIN puede transferir stock
-                        .requestMatchers("/stock/transfer").hasRole("ADMIN")
+                                // Solo ADMIN puede transferir stock
+                                .requestMatchers(HttpMethod.POST, "/stock/transfer/**").hasRole("ADMIN")
 
-                        // Stock requiere login
-                        .requestMatchers("/stock/**").authenticated()
+                                // Stock requiere login
+                                .requestMatchers("/stock/**").authenticated()
 
-                        // Productos requiere login
-                        .requestMatchers("/products/**").authenticated()
+                                    // Productos requiere login
+                                .requestMatchers("/products/**").authenticated()
 
-                        // Categorías requiere login
-                        .requestMatchers("/categories/**").authenticated()
+                                    // Categorías requiere login
+                                .requestMatchers("/categories/**").authenticated()
 
-                        // Resto público (si lo necesitás)
+                                // Resto público (si lo necesitás)
                         .anyRequest().permitAll()
                 )
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);

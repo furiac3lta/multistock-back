@@ -79,6 +79,7 @@ public class StockMovementServiceImpl implements StockMovementService {
 
         StockMovement movement = StockMovement.builder()
                 .product(product)
+                .branch(product.getBranch())      // ✅ FIX CRÍTICO
                 .quantity(quantity)
                 .movementType(movementType)
                 .description(description)
@@ -147,7 +148,7 @@ public class StockMovementServiceImpl implements StockMovementService {
                     .category(product.getCategory())
                     .costPrice(product.getCostPrice())
                     .salePrice(product.getSalePrice())
-                    .branch(target)
+                    .branch(target) // 🔥 NECESARIO
                     .stock(0)
                     .active(true)
                     .build();
@@ -159,7 +160,8 @@ public class StockMovementServiceImpl implements StockMovementService {
         // ===============================================
         //     REGISTRAR MOVIMIENTO EN ORIGEN
         // ===============================================
-        StockMovement movement = StockMovement.builder()
+        StockMovement movementOut = StockMovement.builder()
+                .branch(source) // 🔥 FIX 1 — AGREGAR BRANCH ORIGEN
                 .product(product)
                 .quantity(req.getQuantity())
                 .movementType(MovementType.DECREASE)
@@ -168,8 +170,24 @@ public class StockMovementServiceImpl implements StockMovementService {
                 .createdAt(LocalDateTime.now())
                 .build();
 
-        movementRepo.save(movement);
+        movementRepo.save(movementOut);
 
-        return mapper.toDto(movement);
+        // ===============================================
+        //     REGISTRAR MOVIMIENTO EN DESTINO
+        // ===============================================
+        StockMovement movementIn = StockMovement.builder()
+                .branch(target) // 🔥 FIX 2 — AGREGAR BRANCH DESTINO
+                .product(destino)
+                .quantity(req.getQuantity())
+                .movementType(MovementType.INCREASE)
+                .description("Transferencia desde sucursal: " + source.getName())
+                .createdBy(req.getUser())
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        movementRepo.save(movementIn);
+
+        return mapper.toDto(movementOut);
     }
+
 }
