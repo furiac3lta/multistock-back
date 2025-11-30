@@ -13,4 +13,6 @@ public class StockTransferRequest {
 
     private String description;
     private String user;
+    private String ip;
+
 }

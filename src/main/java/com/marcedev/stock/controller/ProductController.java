@@ -1,7 +1,10 @@
 package com.marcedev.stock.controller;
 
 import com.marcedev.stock.dto.ProductDto;
+import com.marcedev.stock.dto.StockMovementDto;
 import com.marcedev.stock.service.ProductService;
+import com.marcedev.stock.service.StockMovementService;
+import com.marcedev.stock.service.impl.StockMovementServiceImpl;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -119,4 +122,7 @@ public class ProductController {
     public void delete(@PathVariable Long id) {
         service.delete(id);
     }
+
+
+
 }

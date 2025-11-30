@@ -2,15 +2,12 @@ package com.marcedev.stock.service.impl;
 
 import com.marcedev.stock.dto.StockMovementDto;
 import com.marcedev.stock.dto.StockTransferRequest;
-import com.marcedev.stock.entity.Branch;
-import com.marcedev.stock.entity.MovementType;
-import com.marcedev.stock.entity.Product;
-import com.marcedev.stock.entity.StockMovement;
+import com.marcedev.stock.entity.*;
 import com.marcedev.stock.mapper.StockMovementMapper;
-import com.marcedev.stock.repository.BranchRepository;
-import com.marcedev.stock.repository.ProductRepository;
-import com.marcedev.stock.repository.StockMovementRepository;
+import com.marcedev.stock.repository.*;
 import com.marcedev.stock.service.StockMovementService;
+import com.marcedev.stock.service.LogMovementService;
+
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -25,6 +22,7 @@ public class StockMovementServiceImpl implements StockMovementService {
     private final ProductRepository productRepo;
     private final BranchRepository branchRepo;
     private final StockMovementMapper mapper;
+    private final LogMovementService logService;
 
     // ==========================================================
     //                      LISTADOS
@@ -62,6 +60,8 @@ public class StockMovementServiceImpl implements StockMovementService {
         Product product = productRepo.findById(productId)
                 .orElseThrow(() -> new RuntimeException("Producto no encontrado"));
 
+        Branch branch = product.getBranch();
+
         int previousStock = product.getStock();
         int newStock;
 
@@ -77,9 +77,10 @@ public class StockMovementServiceImpl implements StockMovementService {
         product.setStock(newStock);
         productRepo.save(product);
 
+        // Guardar movimiento
         StockMovement movement = StockMovement.builder()
                 .product(product)
-                .branch(product.getBranch())      // ✅ FIX CRÍTICO
+                .branch(branch)
                 .quantity(quantity)
                 .movementType(movementType)
                 .description(description)
@@ -88,6 +89,19 @@ public class StockMovementServiceImpl implements StockMovementService {
                 .build();
 
         movementRepo.save(movement);
+
+        // Log de auditoría
+        logService.log(LogMovement.builder()
+                .action("AJUSTE")
+                .productId(product.getId())
+                .branchId(branch.getId())
+                .branchName(branch.getName())
+                .beforeStock((double) previousStock)
+                .afterStock((double) newStock)
+                .username(user)
+                .ip("N/A") // ← se debe completar en el controller
+                .createdAt(LocalDateTime.now())
+                .build());
 
         StockMovementDto dto = mapper.toDto(movement);
         dto.setPreviousStock(previousStock);
@@ -102,7 +116,6 @@ public class StockMovementServiceImpl implements StockMovementService {
     @Override
     public StockMovementDto transfer(StockTransferRequest req) {
 
-        // VALIDAR SUCURSALES
         Branch source = branchRepo.findById(req.getSourceBranchId())
                 .orElseThrow(() -> new RuntimeException("Sucursal origen no encontrada"));
 
@@ -117,7 +130,6 @@ public class StockMovementServiceImpl implements StockMovementService {
             throw new RuntimeException("La cantidad debe ser mayor a 0");
         }
 
-        // PRODUCTO ORIGEN
         Product product = productRepo.findById(req.getProductId())
                 .orElseThrow(() -> new RuntimeException("Producto no encontrado"));
 
@@ -125,8 +137,10 @@ public class StockMovementServiceImpl implements StockMovementService {
             throw new RuntimeException("El producto no pertenece a la sucursal origen");
         }
 
-        // RESTAR STOCK ORIGEN
-        int newSourceStock = product.getStock() - req.getQuantity();
+        // STOCK ORIGEN
+        int previousSourceStock = product.getStock();
+        int newSourceStock = previousSourceStock - req.getQuantity();
+
         if (newSourceStock < 0) {
             throw new RuntimeException("Stock insuficiente en sucursal origen");
         }
@@ -134,11 +148,8 @@ public class StockMovementServiceImpl implements StockMovementService {
         product.setStock(newSourceStock);
         productRepo.save(product);
 
-        // ===============================================
-        //        PRODUCTO EN SUCURSAL DESTINO
-        // ===============================================
+        // PRODUCTO EN DESTINO
         String sku = product.getSku();
-
         Product destino = productRepo.findBySkuAndBranch(sku, target.getId());
 
         if (destino == null) {
@@ -148,46 +159,70 @@ public class StockMovementServiceImpl implements StockMovementService {
                     .category(product.getCategory())
                     .costPrice(product.getCostPrice())
                     .salePrice(product.getSalePrice())
-                    .branch(target) // 🔥 NECESARIO
+                    .branch(target)
                     .stock(0)
                     .active(true)
                     .build();
         }
 
-        destino.setStock(destino.getStock() + req.getQuantity());
+        int previousDestStock = destino.getStock();
+        int newDestStock = previousDestStock + req.getQuantity();
+
+        destino.setStock(newDestStock);
         productRepo.save(destino);
 
-        // ===============================================
-        //     REGISTRAR MOVIMIENTO EN ORIGEN
-        // ===============================================
+        // MOVIMIENTO ORIGEN
         StockMovement movementOut = StockMovement.builder()
-                .branch(source) // 🔥 FIX 1 — AGREGAR BRANCH ORIGEN
+                .branch(source)
                 .product(product)
                 .quantity(req.getQuantity())
                 .movementType(MovementType.DECREASE)
-                .description("Transferencia a sucursal: " + target.getName())
+                .description("Transferencia a " + target.getName())
                 .createdBy(req.getUser())
                 .createdAt(LocalDateTime.now())
                 .build();
 
         movementRepo.save(movementOut);
 
-        // ===============================================
-        //     REGISTRAR MOVIMIENTO EN DESTINO
-        // ===============================================
+        // MOVIMIENTO DESTINO
         StockMovement movementIn = StockMovement.builder()
-                .branch(target) // 🔥 FIX 2 — AGREGAR BRANCH DESTINO
+                .branch(target)
                 .product(destino)
                 .quantity(req.getQuantity())
                 .movementType(MovementType.INCREASE)
-                .description("Transferencia desde sucursal: " + source.getName())
+                .description("Transferencia desde " + source.getName())
                 .createdBy(req.getUser())
                 .createdAt(LocalDateTime.now())
                 .build();
 
         movementRepo.save(movementIn);
 
+        // LOG ORIGEN
+        logService.log(LogMovement.builder()
+                .action("TRANSFERENCIA_ORIGEN")
+                .productId(product.getId())
+                .branchId(source.getId())
+                .branchName(source.getName())
+                .beforeStock((double) previousSourceStock)
+                .afterStock((double) newSourceStock)
+                .username(req.getUser())
+                .ip(req.getIp())        // ← ya funciona
+                .createdAt(LocalDateTime.now())
+                .build());
+
+        // LOG DESTINO
+        logService.log(LogMovement.builder()
+                .action("TRANSFERENCIA_DESTINO")
+                .productId(destino.getId())
+                .branchId(target.getId())
+                .branchName(target.getName())
+                .beforeStock((double) previousDestStock)
+                .afterStock((double) newDestStock)
+                .username(req.getUser())
+                .ip(req.getIp())
+                .createdAt(LocalDateTime.now())
+                .build());
+
         return mapper.toDto(movementOut);
     }
-
 }
