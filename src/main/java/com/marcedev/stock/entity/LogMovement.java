@@ -16,17 +16,28 @@ public class LogMovement {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    private String action;          // TRANSFERENCIA, AJUSTE, ALTA, BAJA
+    // ===== PRODUCTO =====
     private Long productId;
+    private String productName;
 
-    private Long branchId;          // sucursal donde ocurrió
+    // ===== MOVIMIENTO =====
+    private String movementType;      // ADJUST_INCREASE, ADJUST_DECREASE, TRANSFER_OUT, TRANSFER_IN
+    private Double quantity;
+    private String description;
+
+    // ===== SUCURSALES =====
+    private Long branchId;            // sucursal destino
     private String branchName;
 
-    private Double beforeStock;     // stock antes
-    private Double afterStock;      // stock después
+    private Long originBranchId;      // en transferencias
+    private String originBranchName;  // en transferencias
 
-    private String username;        // usuario que ejecutó
-    private String ip;              // IP origen
+    // ===== STOCK =====
+    private Double beforeStock;
+    private Double afterStock;
 
-    private LocalDateTime createdAt; // timestamp
+    // ===== AUDITORÍA =====
+    private String username;
+    private String ip;
+    private LocalDateTime createdAt;
 }

@@ -6,6 +6,8 @@ import com.marcedev.stock.service.LogMovementService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
+
 @Service
 @RequiredArgsConstructor
 public class LogMovementServiceImpl implements LogMovementService {
@@ -13,7 +15,8 @@ public class LogMovementServiceImpl implements LogMovementService {
     private final LogMovementRepository repo;
 
     @Override
-    public void log(LogMovement movement) {
-        repo.save(movement);
+    public void save(LogMovement log) {
+        log.setCreatedAt(LocalDateTime.now());
+        repo.save(log);
     }
 }

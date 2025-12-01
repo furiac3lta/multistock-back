@@ -22,10 +22,12 @@ public class StockMovementServiceImpl implements StockMovementService {
     private final ProductRepository productRepo;
     private final BranchRepository branchRepo;
     private final StockMovementMapper mapper;
+
     private final LogMovementService logService;
+    private final LogMovementRepository logMovementRepository;
 
     // ==========================================================
-    //                      LISTADOS
+    // LISTADOS
     // ==========================================================
     @Override
     public List<StockMovementDto> findAll() {
@@ -52,7 +54,7 @@ public class StockMovementServiceImpl implements StockMovementService {
     }
 
     // ==========================================================
-    //                AJUSTE NORMAL DE STOCK
+    // AJUSTE NORMAL DE STOCK
     // ==========================================================
     @Override
     public StockMovementDto move(Long productId, Integer quantity, String type, String description, String user) {
@@ -71,13 +73,14 @@ public class StockMovementServiceImpl implements StockMovementService {
             newStock = previousStock + quantity;
         } else {
             newStock = previousStock - quantity;
-            if (newStock < 0) throw new RuntimeException("El stock no puede quedar negativo");
+            if (newStock < 0)
+                throw new RuntimeException("El stock no puede quedar negativo");
         }
 
         product.setStock(newStock);
         productRepo.save(product);
 
-        // Guardar movimiento
+        // 🔥 Movimiento
         StockMovement movement = StockMovement.builder()
                 .product(product)
                 .branch(branch)
@@ -90,18 +93,27 @@ public class StockMovementServiceImpl implements StockMovementService {
 
         movementRepo.save(movement);
 
-        // Log de auditoría
-        logService.log(LogMovement.builder()
-                .action("AJUSTE")
+        // 🔥 Log completo
+        LogMovement log = LogMovement.builder()
                 .productId(product.getId())
+                .productName(product.getName())
+
+                .movementType("ADJUST_" + type)
+                .quantity((double) quantity)
+                .description(description)
+
                 .branchId(branch.getId())
                 .branchName(branch.getName())
+
                 .beforeStock((double) previousStock)
                 .afterStock((double) newStock)
+
                 .username(user)
-                .ip("N/A") // ← se debe completar en el controller
+                .ip("N/A")
                 .createdAt(LocalDateTime.now())
-                .build());
+                .build();
+
+        saveLog(log);
 
         StockMovementDto dto = mapper.toDto(movement);
         dto.setPreviousStock(previousStock);
@@ -111,7 +123,7 @@ public class StockMovementServiceImpl implements StockMovementService {
     }
 
     // ==========================================================
-    //            TRANSFERENCIA ENTRE SUCURSALES
+    // TRANSFERENCIA ENTRE SUCURSALES
     // ==========================================================
     @Override
     public StockMovementDto transfer(StockTransferRequest req) {
@@ -122,36 +134,30 @@ public class StockMovementServiceImpl implements StockMovementService {
         Branch target = branchRepo.findById(req.getTargetBranchId())
                 .orElseThrow(() -> new RuntimeException("Sucursal destino no encontrada"));
 
-        if (source.getId().equals(target.getId())) {
+        if (source.getId().equals(target.getId()))
             throw new RuntimeException("No puedes transferir dentro de la misma sucursal");
-        }
 
-        if (req.getQuantity() <= 0) {
+        if (req.getQuantity() <= 0)
             throw new RuntimeException("La cantidad debe ser mayor a 0");
-        }
 
         Product product = productRepo.findById(req.getProductId())
                 .orElseThrow(() -> new RuntimeException("Producto no encontrado"));
 
-        if (!product.getBranch().getId().equals(source.getId())) {
+        if (!product.getBranch().getId().equals(source.getId()))
             throw new RuntimeException("El producto no pertenece a la sucursal origen");
-        }
 
         // STOCK ORIGEN
         int previousSourceStock = product.getStock();
         int newSourceStock = previousSourceStock - req.getQuantity();
 
-        if (newSourceStock < 0) {
+        if (newSourceStock < 0)
             throw new RuntimeException("Stock insuficiente en sucursal origen");
-        }
 
         product.setStock(newSourceStock);
         productRepo.save(product);
 
         // PRODUCTO EN DESTINO
-        String sku = product.getSku();
-        Product destino = productRepo.findBySkuAndBranch(sku, target.getId());
-
+        Product destino = productRepo.findBySkuAndBranch(product.getSku(), target.getId());
         if (destino == null) {
             destino = Product.builder()
                     .name(product.getName())
@@ -171,51 +177,61 @@ public class StockMovementServiceImpl implements StockMovementService {
         destino.setStock(newDestStock);
         productRepo.save(destino);
 
-        // MOVIMIENTO ORIGEN
+        // 🔥 MOVIMIENTO ORIGEN
         StockMovement movementOut = StockMovement.builder()
                 .branch(source)
                 .product(product)
                 .quantity(req.getQuantity())
                 .movementType(MovementType.DECREASE)
-                .description("Transferencia a " + target.getName())
+                .description(req.getDescription())
                 .createdBy(req.getUser())
                 .createdAt(LocalDateTime.now())
                 .build();
 
         movementRepo.save(movementOut);
 
-        // MOVIMIENTO DESTINO
+        // 🔥 MOVIMIENTO DESTINO
         StockMovement movementIn = StockMovement.builder()
                 .branch(target)
                 .product(destino)
                 .quantity(req.getQuantity())
                 .movementType(MovementType.INCREASE)
-                .description("Transferencia desde " + source.getName())
+                .description(req.getDescription())
                 .createdBy(req.getUser())
                 .createdAt(LocalDateTime.now())
                 .build();
 
         movementRepo.save(movementIn);
 
-        // LOG ORIGEN
-        logService.log(LogMovement.builder()
-                .action("TRANSFERENCIA_ORIGEN")
+        // 🔥 LOG ORIGEN
+        saveLog(LogMovement.builder()
                 .productId(product.getId())
+                .productName(product.getName())
+                .movementType("TRANSFER_OUT")
+                .quantity((double) req.getQuantity())
+                .description(req.getDescription())
                 .branchId(source.getId())
                 .branchName(source.getName())
+                .originBranchId(source.getId())
+                .originBranchName(source.getName())
                 .beforeStock((double) previousSourceStock)
                 .afterStock((double) newSourceStock)
                 .username(req.getUser())
-                .ip(req.getIp())        // ← ya funciona
+                .ip(req.getIp())
                 .createdAt(LocalDateTime.now())
                 .build());
 
-        // LOG DESTINO
-        logService.log(LogMovement.builder()
-                .action("TRANSFERENCIA_DESTINO")
+        // 🔥 LOG DESTINO
+        saveLog(LogMovement.builder()
                 .productId(destino.getId())
+                .productName(destino.getName())
+                .movementType("TRANSFER_IN")
+                .quantity((double) req.getQuantity())
+                .description(req.getDescription())
                 .branchId(target.getId())
                 .branchName(target.getName())
+                .originBranchId(source.getId())
+                .originBranchName(source.getName())
                 .beforeStock((double) previousDestStock)
                 .afterStock((double) newDestStock)
                 .username(req.getUser())
@@ -224,5 +240,14 @@ public class StockMovementServiceImpl implements StockMovementService {
                 .build());
 
         return mapper.toDto(movementOut);
+    }
+
+
+    // ==========================================================
+    // MÉTODO INTERNO PARA GUARDAR LOG
+    // ==========================================================
+    private void saveLog(LogMovement log) {
+        log.setCreatedAt(LocalDateTime.now());
+        logMovementRepository.save(log);
     }
 }
