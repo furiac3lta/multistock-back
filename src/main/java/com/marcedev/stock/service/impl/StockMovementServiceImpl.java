@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -80,7 +81,6 @@ public class StockMovementServiceImpl implements StockMovementService {
         product.setStock(newStock);
         productRepo.save(product);
 
-        // 🔥 Movimiento
         StockMovement movement = StockMovement.builder()
                 .product(product)
                 .branch(branch)
@@ -93,21 +93,16 @@ public class StockMovementServiceImpl implements StockMovementService {
 
         movementRepo.save(movement);
 
-        // 🔥 Log completo
         LogMovement log = LogMovement.builder()
                 .productId(product.getId())
                 .productName(product.getName())
-
                 .movementType("ADJUST_" + type)
                 .quantity((double) quantity)
                 .description(description)
-
                 .branchId(branch.getId())
                 .branchName(branch.getName())
-
                 .beforeStock((double) previousStock)
                 .afterStock((double) newStock)
-
                 .username(user)
                 .ip("N/A")
                 .createdAt(LocalDateTime.now())
@@ -156,20 +151,22 @@ public class StockMovementServiceImpl implements StockMovementService {
         product.setStock(newSourceStock);
         productRepo.save(product);
 
-        // PRODUCTO EN DESTINO
-        Product destino = productRepo.findBySkuAndBranch(product.getSku(), target.getId());
-        if (destino == null) {
-            destino = Product.builder()
-                    .name(product.getName())
-                    .sku(product.getSku())
-                    .category(product.getCategory())
-                    .costPrice(product.getCostPrice())
-                    .salePrice(product.getSalePrice())
-                    .branch(target)
-                    .stock(0)
-                    .active(true)
-                    .build();
-        }
+        // PRODUCTO EN DESTINO (FINALMENTE CORREGIDO)
+        Optional<Product> optDestino =
+                productRepo.findBySkuAndBranch(product.getSku(), target.getId());
+
+        Product destino = optDestino.orElseGet(() ->
+                Product.builder()
+                        .name(product.getName())
+                        .sku(product.getSku())
+                        .category(product.getCategory())
+                        .costPrice(product.getCostPrice())
+                        .salePrice(product.getSalePrice())
+                        .branch(target)
+                        .stock(0)
+                        .active(true)
+                        .build()
+        );
 
         int previousDestStock = destino.getStock();
         int newDestStock = previousDestStock + req.getQuantity();
@@ -177,7 +174,7 @@ public class StockMovementServiceImpl implements StockMovementService {
         destino.setStock(newDestStock);
         productRepo.save(destino);
 
-        // 🔥 MOVIMIENTO ORIGEN
+        // MOVIMIENTO ORIGEN
         StockMovement movementOut = StockMovement.builder()
                 .branch(source)
                 .product(product)
@@ -187,10 +184,9 @@ public class StockMovementServiceImpl implements StockMovementService {
                 .createdBy(req.getUser())
                 .createdAt(LocalDateTime.now())
                 .build();
-
         movementRepo.save(movementOut);
 
-        // 🔥 MOVIMIENTO DESTINO
+        // MOVIMIENTO DESTINO
         StockMovement movementIn = StockMovement.builder()
                 .branch(target)
                 .product(destino)
@@ -200,10 +196,9 @@ public class StockMovementServiceImpl implements StockMovementService {
                 .createdBy(req.getUser())
                 .createdAt(LocalDateTime.now())
                 .build();
-
         movementRepo.save(movementIn);
 
-        // 🔥 LOG ORIGEN
+        // LOG ORIGEN
         saveLog(LogMovement.builder()
                 .productId(product.getId())
                 .productName(product.getName())
@@ -221,7 +216,7 @@ public class StockMovementServiceImpl implements StockMovementService {
                 .createdAt(LocalDateTime.now())
                 .build());
 
-        // 🔥 LOG DESTINO
+        // LOG DESTINO
         saveLog(LogMovement.builder()
                 .productId(destino.getId())
                 .productName(destino.getName())
@@ -241,7 +236,6 @@ public class StockMovementServiceImpl implements StockMovementService {
 
         return mapper.toDto(movementOut);
     }
-
 
     // ==========================================================
     // MÉTODO INTERNO PARA GUARDAR LOG
