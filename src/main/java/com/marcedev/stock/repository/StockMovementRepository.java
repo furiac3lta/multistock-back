@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 public interface StockMovementRepository extends JpaRepository<StockMovement, Long> {
@@ -15,5 +16,7 @@ public interface StockMovementRepository extends JpaRepository<StockMovement, Lo
     List<StockMovement> historyByBranch(@Param("branchId") Long branchId);
 
     List<StockMovement> findByProductBranchIdOrderByCreatedAtDesc(Long branchId);
+
+    List<StockMovement> findByBranchIdAndCreatedAtAfter(Long branchId, LocalDateTime createdAt);
 
 }

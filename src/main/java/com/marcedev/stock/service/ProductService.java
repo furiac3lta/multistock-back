@@ -1,5 +1,6 @@
 package com.marcedev.stock.service;
 
+import com.marcedev.stock.dto.ImportProductDTO;
 import com.marcedev.stock.dto.ProductDto;
 import com.marcedev.stock.entity.Product;
 
@@ -19,4 +20,7 @@ public interface ProductService {
     ProductDto update(Long id, ProductDto dto);
 
     void delete(Long id);
+
+    void importProducts(List<ImportProductDTO> list);
+
 }

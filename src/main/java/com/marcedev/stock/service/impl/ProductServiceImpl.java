@@ -1,5 +1,6 @@
 package com.marcedev.stock.service.impl;
 
+import com.marcedev.stock.dto.ImportProductDTO;
 import com.marcedev.stock.dto.ProductDto;
 import com.marcedev.stock.entity.Branch;
 import com.marcedev.stock.entity.Category;
@@ -9,6 +10,7 @@ import com.marcedev.stock.repository.BranchRepository;
 import com.marcedev.stock.repository.CategoryRepository;
 import com.marcedev.stock.repository.ProductRepository;
 import com.marcedev.stock.service.ProductService;
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -20,8 +22,12 @@ public class ProductServiceImpl implements ProductService {
 
     private final ProductRepository repository;
     private final CategoryRepository categoryRepository;
+    private final BranchRepository branchRepository; // ← SOLO UNO
     private final ProductMapper mapper;
-    private final BranchRepository branchRepo;
+
+    // ===========================================================
+    // CRUD NORMAL
+    // ===========================================================
 
     @Override
     public List<ProductDto> findAll() {
@@ -54,7 +60,7 @@ public class ProductServiceImpl implements ProductService {
         Category category = categoryRepository.findById(dto.getCategoryId())
                 .orElseThrow(() -> new RuntimeException("Categoría no encontrada"));
 
-        Branch branch = branchRepo.findById(dto.getBranchId())
+        Branch branch = branchRepository.findById(dto.getBranchId())
                 .orElseThrow(() -> new RuntimeException("Sucursal no encontrada"));
 
         Product product = mapper.toEntity(dto);
@@ -79,7 +85,7 @@ public class ProductServiceImpl implements ProductService {
                 .orElseThrow(() -> new RuntimeException("Categoría no encontrada"));
         product.setCategory(category);
 
-        Branch branch = branchRepo.findById(dto.getBranchId())
+        Branch branch = branchRepository.findById(dto.getBranchId())
                 .orElseThrow(() -> new RuntimeException("Sucursal no encontrada"));
         product.setBranch(branch);
 
@@ -95,9 +101,52 @@ public class ProductServiceImpl implements ProductService {
         repository.save(product);
     }
 
-    // ---------------------------
-    // VALIDACIONES UNIFICADAS
-    // ---------------------------
+    // ===========================================================
+    // IMPORTAR PRODUCTOS DESDE EXCEL
+    // ===========================================================
+
+    @Override
+    @Transactional
+    public void importProducts(List<ImportProductDTO> list) {
+        System.out.println("== INICIO IMPORTACIÓN, FILAS RECIBIDAS: " + list.size());
+
+        for (ImportProductDTO dto : list) {
+            System.out.println("Procesando fila: " + dto);
+
+            if (dto.getName() == null || dto.getCategory() == null || dto.getBranch() == null) {
+                throw new RuntimeException("Faltan campos obligatorios en el Excel");
+            }
+
+            Category category = categoryRepository
+                    .findByNameIgnoreCase(dto.getCategory())
+                    .orElseThrow(() ->
+                            new RuntimeException("Categoría no encontrada: " + dto.getCategory())
+                    );
+
+            Branch branch = branchRepository
+                    .findByNameIgnoreCase(dto.getBranch())
+                    .orElseThrow(() ->
+                            new RuntimeException("Sucursal no encontrada: " + dto.getBranch())
+                    );
+
+            Product p = new Product();
+            p.setName(dto.getName());
+            p.setSku(dto.getSku());
+            p.setStock(dto.getStock());
+            p.setCostPrice(dto.getCost());
+            p.setSalePrice(dto.getPrice());
+            p.setCategory(category);
+            p.setBranch(branch);
+            p.setActive(true);
+
+            repository.save(p); // ← CORREGIDO
+        }
+    }
+
+    // ===========================================================
+    // VALIDACIONES
+    // ===========================================================
+
     private void validateDto(ProductDto dto) {
 
         if (dto.getName() == null || dto.getName().trim().isEmpty()) {

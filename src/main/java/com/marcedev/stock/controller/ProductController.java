@@ -1,5 +1,6 @@
 package com.marcedev.stock.controller;
 
+import com.marcedev.stock.dto.ImportProductDTO;
 import com.marcedev.stock.dto.ProductDto;
 import com.marcedev.stock.dto.StockMovementDto;
 import com.marcedev.stock.service.ProductService;
@@ -7,6 +8,7 @@ import com.marcedev.stock.service.StockMovementService;
 import com.marcedev.stock.service.impl.StockMovementServiceImpl;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -124,5 +126,10 @@ public class ProductController {
     }
 
 
+    @PostMapping("/import")
+    public ResponseEntity<?> importProducts(@RequestBody List<ImportProductDTO> list) {
+        service.importProducts(list);
+        return ResponseEntity.ok("IMPORT_OK");
+    }
 
 }
