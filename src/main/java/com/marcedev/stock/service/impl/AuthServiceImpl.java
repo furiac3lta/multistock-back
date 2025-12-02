@@ -3,6 +3,7 @@ package com.marcedev.stock.service.impl;
 import com.marcedev.stock.dto.AuthRequestDto;
 import com.marcedev.stock.dto.AuthResponseDto;
 import com.marcedev.stock.entity.User;
+import com.marcedev.stock.exception.ApiException;
 import com.marcedev.stock.repository.UserRepository;
 import com.marcedev.stock.security.JwtService;
 import com.marcedev.stock.service.AuthService;
@@ -25,7 +26,9 @@ public class AuthServiceImpl implements AuthService {
 
         User user = userRepository.findByUsername(dto.getUsername())
                 .orElseThrow(() -> new UsernameNotFoundException("Usuario no encontrado"));
-
+        if (Boolean.FALSE.equals(user.getActive())) {
+            throw new ApiException("Usuario inactivo");
+        }
         if (!encoder.matches(dto.getPassword(), user.getPassword())) {
             throw new RuntimeException("Contraseña incorrecta");
         }
